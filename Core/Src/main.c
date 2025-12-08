@@ -415,16 +415,16 @@ void StartTask02(void *argument)
 	lcd_clear();
 
 	HAL_TIM_Encoder_Start(&htim2, 1);
-	int cpt_val;
+	int16_t cpt_val;
 	char buf[16];
   /* Infinite loop */
   for(;;)
   {
-    cpt_val = __HAL_TIM_GET_COUNTER(&htim2);
+    cpt_val = __HAL_TIM_GET_COUNTER(&htim2)/4;
     lcd_clear();
     sprintf(buf, "%d", cpt_val);
     lcd_write(buf);
-    osDelay(1000);
+    osDelay(100);
   }
   /* USER CODE END StartTask02 */
 }

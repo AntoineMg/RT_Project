@@ -378,6 +378,13 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback ( uint16_t GPIO_Pin ){
+	if(GPIO_Pin == B1_Pin){
+		//osSemaphoreRelease(semButtonEchoHandle);
+		HAL_GPIO_TogglePin ( LD2_GPIO_Port , LD2_Pin );
+		__HAL_TIM_SET_COUNTER(&htim2, 0);
+	}
+}
 
 /* USER CODE END 4 */
 
@@ -424,7 +431,7 @@ void StartTask02(void *argument)
     lcd_clear();
     sprintf(buf, "%d", cpt_val);
     lcd_write(buf);
-    osDelay(100);
+    osDelay(50);
   }
   /* USER CODE END StartTask02 */
 }

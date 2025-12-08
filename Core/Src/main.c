@@ -43,8 +43,6 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
-TIM_HandleTypeDef htim2;
-
 UART_HandleTypeDef huart2;
 
 /* Definitions for defaultTask */
@@ -54,19 +52,12 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for LCDDisplay_Task */
-osThreadId_t LCDDisplay_TaskHandle;
-const osThreadAttr_t LCDDisplay_Task_attributes = {
-  .name = "LCDDisplay_Task",
+/* Definitions for printLCD_Task */
+osThreadId_t printLCD_TaskHandle;
+const osThreadAttr_t printLCD_Task_attributes = {
+  .name = "printLCD_Task",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for EncoderRead_Tas */
-osThreadId_t EncoderRead_TasHandle;
-const osThreadAttr_t EncoderRead_Tas_attributes = {
-  .name = "EncoderRead_Tas",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityHigh,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
 
@@ -75,12 +66,10 @@ const osThreadAttr_t EncoderRead_Tas_attributes = {
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
-static void MX_TIM2_Init(void);
+static void MX_USART2_UART_Init(void);
 void StartDefaultTask(void *argument);
-void StartLCDDisplay_Task(void *argument);
-void StartEncoderRead_Task(void *argument);
+void StartTask02(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -120,9 +109,8 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();
   MX_I2C1_Init();
-  MX_TIM2_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -150,11 +138,8 @@ int main(void)
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of LCDDisplay_Task */
-  LCDDisplay_TaskHandle = osThreadNew(StartLCDDisplay_Task, NULL, &LCDDisplay_Task_attributes);
-
-  /* creation of EncoderRead_Tas */
-  EncoderRead_TasHandle = osThreadNew(StartEncoderRead_Task, NULL, &EncoderRead_Tas_attributes);
+  /* creation of printLCD_Task */
+  printLCD_TaskHandle = osThreadNew(StartTask02, NULL, &printLCD_Task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -262,55 +247,6 @@ static void MX_I2C1_Init(void)
 }
 
 /**
-  * @brief TIM2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM2_Init(void)
-{
-
-  /* USER CODE BEGIN TIM2_Init 0 */
-
-  /* USER CODE END TIM2_Init 0 */
-
-  TIM_Encoder_InitTypeDef sConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM2_Init 1 */
-
-  /* USER CODE END TIM2_Init 1 */
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 4294967295;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
-  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
-  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 0;
-  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
-  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
-  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 0;
-  if (HAL_TIM_Encoder_Init(&htim2, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM2_Init 2 */
-
-  /* USER CODE END TIM2_Init 2 */
-
-}
-
-/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -366,7 +302,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
@@ -387,13 +323,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_GPIO_EXTI_Callback ( uint16_t GPIO_Pin ){
-	if(GPIO_Pin == B1_Pin){
-		//osSemaphoreRelease(semButtonEchoHandle);
-		HAL_GPIO_TogglePin ( LD2_GPIO_Port , LD2_Pin );
-		__HAL_TIM_SET_COUNTER(&htim2, 0);
-	}
-}
 
 /* USER CODE END 4 */
 
@@ -410,62 +339,27 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  osDelay(5);
+    osDelay(1);
   }
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartLCDDisplay_Task */
+/* USER CODE BEGIN Header_StartTask02 */
 /**
-* @brief Function implementing the LCDDisplay_Task thread.
+* @brief Function implementing the printLCD_Task thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartLCDDisplay_Task */
-void StartLCDDisplay_Task(void *argument)
+/* USER CODE END Header_StartTask02 */
+void StartTask02(void *argument)
 {
-  /* USER CODE BEGIN StartLCDDisplay_Task */
-
-	lcd_init(hi2c1);
-	lcd_put_cursor(0,0);
-	lcd_clear();
+  /* USER CODE BEGIN StartTask02 */
   /* Infinite loop */
   for(;;)
   {
-	  lcd_write("1");
-	  osDelay(1000);
+    osDelay(1);
   }
-  /* USER CODE END StartLCDDisplay_Task */
-}
-
-/* USER CODE BEGIN Header_StartEncoderRead_Task */
-/**
-* @brief Function implementing the EncoderRead_Tas thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartEncoderRead_Task */
-void StartEncoderRead_Task(void *argument)
-{
-  /* USER CODE BEGIN StartEncoderRead_Task */
-	lcd_init(hi2c1);
-	lcd_put_cursor(0,0);
-	lcd_clear();
-
-	HAL_TIM_Encoder_Start(&htim2, 1);
-	int cpt_val;
-	char buf[16];
-
-	/* Infinite loop */
-	for(;;){
-		cpt_val = __HAL_TIM_GET_COUNTER(&htim2);
-		lcd_clear();
-		sprintf(buf, "%d", cpt_val);
-		lcd_write(buf);
-		HAL_Delay(1000);
-
-	}
-  /* USER CODE END StartEncoderRead_Task */
+  /* USER CODE END StartTask02 */
 }
 
 /**

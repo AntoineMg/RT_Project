@@ -63,6 +63,13 @@ const osThreadAttr_t printLCD_Task_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for menu_Task */
+osThreadId_t menu_TaskHandle;
+const osThreadAttr_t menu_Task_attributes = {
+  .name = "menu_Task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -75,6 +82,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
 void StartDefaultTask(void *argument);
 void StartTask02(void *argument);
+void Start_Menu_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -146,6 +154,9 @@ int main(void)
 
   /* creation of printLCD_Task */
   printLCD_TaskHandle = osThreadNew(StartTask02, NULL, &printLCD_Task_attributes);
+
+  /* creation of menu_Task */
+  menu_TaskHandle = osThreadNew(Start_Menu_Task, NULL, &menu_Task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -421,19 +432,42 @@ void StartTask02(void *argument)
 	lcd_put_cursor(0,0);
 	lcd_clear();
 
-	HAL_TIM_Encoder_Start(&htim2, 1);
-	int16_t cpt_val;
-	char buf[16];
   /* Infinite loop */
   for(;;)
   {
-    cpt_val = __HAL_TIM_GET_COUNTER(&htim2)/4;
     lcd_clear();
-    sprintf(buf, "%d", cpt_val);
-    lcd_write(buf);
-    osDelay(50);
+    lcd_write("Tâche 1");
+    osDelay(500);
   }
   /* USER CODE END StartTask02 */
+}
+
+/* USER CODE BEGIN Header_Start_Menu_Task */
+/**
+* @brief Function implementing the menu_Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Start_Menu_Task */
+void Start_Menu_Task(void *argument)
+{
+  /* USER CODE BEGIN Start_Menu_Task */
+
+  //ICI gestion de l'encodeur et envoi de l'état dans la queue
+	HAL_TIM_Encoder_Start(&htim2, 1);
+
+	int16_t cpt;
+	char enc_val[16];
+
+  /* Infinite loop */
+  for(;;)
+  {
+    cpt = __HAL_TIM_GET_COUNTER(&htim2)/4;
+    sprintf(enc_val, "%d", cpt);
+    osMessageQueuePut()
+    osDelay(1);
+  }
+  /* USER CODE END Start_Menu_Task */
 }
 
 /**

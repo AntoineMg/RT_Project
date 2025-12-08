@@ -34,6 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define NB_ETATS 2
 
 /* USER CODE END PD */
 
@@ -69,6 +70,11 @@ const osThreadAttr_t menu_Task_attributes = {
   .name = "menu_Task",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for menuQueue */
+osMessageQueueId_t menuQueueHandle;
+const osMessageQueueAttr_t menuQueue_attributes = {
+  .name = "menuQueue"
 };
 /* USER CODE BEGIN PV */
 
@@ -143,6 +149,10 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* creation of menuQueue */
+  menuQueueHandle = osMessageQueueNew (32, sizeof(int), &menuQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -427,17 +437,24 @@ void StartDefaultTask(void *argument)
 void StartTask02(void *argument)
 {
   /* USER CODE BEGIN StartTask02 */
+
+  //Dans cete tache on affiche l'état du menu
+
   // Initialisation LCD et Timers ici
 	lcd_init(hi2c1);
 	lcd_put_cursor(0,0);
 	lcd_clear();
+  int etat_menu;
 
   /* Infinite loop */
   for(;;)
   {
+    osMessageQueueGet(menuQueueHandle,&etat_menu,NULL,999999);
     lcd_clear();
-    lcd_write("Tâche 1");
-    osDelay(500);
+    char lcdtext[16];
+    sprintf(lcdtext, "%d", etat_menu);
+    lcd_write("Menu : ");
+    lcd_write(lcdtext);
   }
   /* USER CODE END StartTask02 */
 }
@@ -457,14 +474,30 @@ void Start_Menu_Task(void *argument)
 	HAL_TIM_Encoder_Start(&htim2, 1);
 
 	int16_t cpt;
-	char enc_val[16];
+  int16_t cpt_old=0;
+  int state = 1;  //etat 1 par defaut
+  int prev_state = 1;
 
   /* Infinite loop */
   for(;;)
   {
-    cpt = __HAL_TIM_GET_COUNTER(&htim2)/4;
-    sprintf(enc_val, "%d", cpt);
-    osMessageQueuePut()
+    int16_t raw_counter = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
+    cpt = raw_counter / 4;
+    //graphe detat
+    if(cpt != cpt_old){
+      //Changement d'état
+
+      int raw_val = (cpt % NB_ETATS); 
+      if (raw_val < 0) raw_val += NB_ETATS;
+      
+      state = raw_val + 1;
+      if (state != prev_state){
+        osMessageQueueReset(menuQueueHandle);
+        osMessageQueuePut(menuQueueHandle,&state,1,999999);
+        prev_state = state;
+      }
+      cpt_old = cpt;
+    }
     osDelay(1);
   }
   /* USER CODE END Start_Menu_Task */

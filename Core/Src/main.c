@@ -35,6 +35,9 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define NB_ETATS 2
+#define BUFFER_SIZE 256
+int16_t rxBuffer[BUFFER_SIZE];
+int16_t txBuffer[BUFFER_SIZE];
 
 /* USER CODE END PD */
 
@@ -76,10 +79,27 @@ const osThreadAttr_t menu_Task_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityHigh,
 };
+/* Definitions for Audio_Task */
+osThreadId_t Audio_TaskHandle;
+const osThreadAttr_t Audio_Task_attributes = {
+  .name = "Audio_Task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityRealtime,
+};
 /* Definitions for menuQueue */
 osMessageQueueId_t menuQueueHandle;
 const osMessageQueueAttr_t menuQueue_attributes = {
   .name = "menuQueue"
+};
+/* Definitions for myBinarySemHalf */
+osSemaphoreId_t myBinarySemHalfHandle;
+const osSemaphoreAttr_t myBinarySemHalf_attributes = {
+  .name = "myBinarySemHalf"
+};
+/* Definitions for myBinarySemFull */
+osSemaphoreId_t myBinarySemFullHandle;
+const osSemaphoreAttr_t myBinarySemFull_attributes = {
+  .name = "myBinarySemFull"
 };
 /* USER CODE BEGIN PV */
 
@@ -98,6 +118,7 @@ static void MX_I2S3_Init(void);
 void StartDefaultTask(void *argument);
 void StartTask02(void *argument);
 void Start_Menu_Task(void *argument);
+void StartAudioTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -157,6 +178,13 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* creation of myBinarySemHalf */
+  myBinarySemHalfHandle = osSemaphoreNew(1, 0, &myBinarySemHalf_attributes);
+
+  /* creation of myBinarySemFull */
+  myBinarySemFullHandle = osSemaphoreNew(1, 0, &myBinarySemFull_attributes);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
@@ -182,6 +210,9 @@ int main(void)
 
   /* creation of menu_Task */
   menu_TaskHandle = osThreadNew(Start_Menu_Task, NULL, &menu_Task_attributes);
+
+  /* creation of Audio_Task */
+  Audio_TaskHandle = osThreadNew(StartAudioTask, NULL, &Audio_Task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -533,6 +564,21 @@ void HAL_GPIO_EXTI_Callback ( uint16_t GPIO_Pin ){
 	}
 }
 
+
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+  if(hi2s->Instance == SPI2) {
+    osSemaphoreRelease(myBinarySemHalfHandle); 
+  }
+}
+
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+  if(hi2s->Instance == SPI2) {
+    osSemaphoreRelease(myBinarySemFullHandle);
+  }
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -627,6 +673,37 @@ void Start_Menu_Task(void *argument)
     osDelay(1);
   }
   /* USER CODE END Start_Menu_Task */
+}
+
+/* USER CODE BEGIN Header_StartAudioTask */
+/**
+* @brief Function implementing the Audio_Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartAudioTask */
+void StartAudioTask(void *argument)
+{
+  /* USER CODE BEGIN StartAudioTask */  
+  HAL_I2S_Receive_DMA(&hi2s2, (uint16_t *)rxBuffer, BUFFER_SIZE);
+  HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t *)txBuffer, BUFFER_SIZE);
+
+  /* Infinite loop */
+  for(;;)
+  {
+    if (osSemaphoreAcquire(myBinarySemHalfHandle, osWaitForever) == osOK){
+        for (int i = 0; i < BUFFER_SIZE / 2; i++) {
+            txBuffer[i] = rxBuffer[i]; 
+        }
+    }
+
+    if (osSemaphoreAcquire(myBinarySemFullHandle, osWaitForever) == osOK){
+        for (int i = BUFFER_SIZE / 2; i < BUFFER_SIZE; i++) {
+            txBuffer[i] = rxBuffer[i];
+        }
+    }
+  }
+  /* USER CODE END StartAudioTask */
 }
 
 /**

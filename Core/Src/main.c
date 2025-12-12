@@ -36,9 +36,6 @@
 /* USER CODE BEGIN PD */
 #define NB_ETATS 2
 #define BUFFER_SIZE 256
-int16_t rxBuffer[BUFFER_SIZE];
-int16_t txBuffer[BUFFER_SIZE];
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -102,6 +99,9 @@ const osSemaphoreAttr_t myBinarySemFull_attributes = {
   .name = "myBinarySemFull"
 };
 /* USER CODE BEGIN PV */
+int16_t rxBuffer[BUFFER_SIZE];
+int16_t txBuffer[BUFFER_SIZE];
+int volume_level = 0;
 
 /* USER CODE END PV */
 
@@ -617,16 +617,36 @@ void StartTask02(void *argument)
 	lcd_put_cursor(0,0);
 	lcd_clear();
   int etat_menu;
+  int volume_power;
+  char lcdtext[16];
+  char lcdtext2[16];
 
   /* Infinite loop */
   for(;;)
   {
-    osMessageQueueGet(menuQueueHandle,&etat_menu,NULL,999999);
+    osMessageQueueGet(menuQueueHandle,&etat_menu,NULL,osWaitForever);
+
+    //AFF MENU
     lcd_clear();
-    char lcdtext[16];
     sprintf(lcdtext, "%d", etat_menu);
+    lcd_put_cursor(0,0);
     lcd_write("Menu : ");
     lcd_write(lcdtext);
+
+    //MENU 1 :
+    if(etat_menu == 1 ){
+      volume_power = 1<<volume_level;
+      snprintf(lcdtext2,16,"%i",volume_power);
+      lcd_put_cursor(1,0);
+      lcd_write("Volume : ");
+      lcd_write(lcdtext2);
+    }
+
+    //MENU 2 :
+    if(etat_menu == 2 ){
+      lcd_put_cursor(1,0);
+      lcd_write("Rien");
+    }
   }
   /* USER CODE END StartTask02 */
 }
@@ -693,7 +713,7 @@ void StartAudioTask(void *argument)
   {
     if (osSemaphoreAcquire(myBinarySemHalfHandle, osWaitForever) == osOK){
         for (int i = 0; i < BUFFER_SIZE / 2; i++) {
-            txBuffer[i] = rxBuffer[i]; 
+            txBuffer[i] = rxBuffer[i]<<volume_level; 
         }
     }
 

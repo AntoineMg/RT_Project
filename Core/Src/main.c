@@ -758,15 +758,20 @@ void StartAudioTask(void *argument)
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t *)txBuffer, BUFFER_SIZE);
 
   float x;
+  float x1;
+  float x2;
+
   float y;
-  float w1 = 0.0f;
-  float w2 = 0.0f;
-  float b0 = 0.00107f;
-  float b1 = 0.00214f;
-  float b2 = 0.00107f;
+  float y1;
+  float y2;
+
+  float b0 = 0.001023211f;
+  float b1 = 0.002046422f;
+  float b2 = 0.001023211f;
+
   float a0 = 1.0f;
-  float a1 = -1.995f;
-  float a2 = 0.996f;
+  float a1 = -1.907f;
+  float a2 = 0.911f;
 
   const float MAX_VAL = 32760.0f;
   const float MIN_VAL = -32760.0f;
@@ -781,48 +786,57 @@ void StartAudioTask(void *argument)
     }
 
     if (osSemaphoreAcquire(myBinarySemHalfHandle, osWaitForever) == osOK){
-        for (int i = 0; i < BUFFER_SIZE / 2; i+=2) {
-          //recup valeurs
-          x = (float)((int16_t)rxBuffer[i]);
-          y = b0 * x + w1;
-          w1 = w2 + b1 * x - a1 * y;
-          w2 = b2 * x - a2 * y;
+      for (int i = 0; i < BUFFER_SIZE / 2; i+=2) {
+        //recup valeurs
+        x = (float)((int16_t)rxBuffer[i]);
+        y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
 
-          if (y > MAX_VAL) y = MAX_VAL;
-          else if (y < MIN_VAL) y = MIN_VAL;
+        if (y > MAX_VAL) y = MAX_VAL;
+        else if (y < MIN_VAL) y = MIN_VAL;
 
-          float y_amplifie = y * 1.0f; 
-          
-          // Saturation
-          if (y_amplifie > 32000.0f) y_amplifie = 32000.0f;
-          if (y_amplifie < -32000.0f) y_amplifie = -32000.0f;
+        float y_amplifie = y * 1.0f; 
+        
+        //saturation
+        if (y_amplifie > 32000.0f) y_amplifie = 32000.0f;
+        if (y_amplifie < -32000.0f) y_amplifie = -32000.0f;
 
-          //passage en mono
-          txBuffer[i] = (int16_t)y_amplifie;
-          txBuffer[i+1] = (int16_t)y_amplifie;
-        }
+        //passage en mono
+        txBuffer[i] = (int16_t)y_amplifie;
+        txBuffer[i+1] = (int16_t)y_amplifie;
+
+        //maj memoires
+        x2 = x1;
+        x1 = x;
+        y2 = y1;
+        y1 = y;
+      }
     }
 
     if (osSemaphoreAcquire(myBinarySemFullHandle, osWaitForever) == osOK){
-        for (int i = BUFFER_SIZE / 2; i < BUFFER_SIZE; i+=2) {
-          //recup valeurs
-          x = (float)((int16_t)rxBuffer[i]);
-          y = b0 * x + w1;
-          w1 = w2 + b1 * x - a1 * y;
-          w2 = b2 * x - a2 * y;
+      for (int i = BUFFER_SIZE / 2; i < BUFFER_SIZE; i+=2) {
+        //recup valeurs
+        x = (float)((int16_t)rxBuffer[i]);
+        y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
 
-          if (y > MAX_VAL) y = MAX_VAL;
-          else if (y < MIN_VAL) y = MIN_VAL;
+        if (y > MAX_VAL) y = MAX_VAL;
+        else if (y < MIN_VAL) y = MIN_VAL;
 
-          float y_amplifie = y * 1.0f; 
+        float y_amplifie = y * 1.0f; 
+        
+        //saturation
+        if (y_amplifie > 32000.0f) y_amplifie = 32000.0f;
+        if (y_amplifie < -32000.0f) y_amplifie = -32000.0f;
 
-          // Saturation
-          if (y_amplifie > 32000.0f) y_amplifie = 32000.0f;
-          if (y_amplifie < -32000.0f) y_amplifie = -32000.0f;
+        //passage en mono
+        txBuffer[i] = (int16_t)y_amplifie;
+        txBuffer[i+1] = (int16_t)y_amplifie;
 
-          txBuffer[i] = (int16_t)y_amplifie;
-          txBuffer[i+1] = (int16_t)y_amplifie;
-        }
+        //maj memoires
+        x2 = x1;
+        x1 = x;
+        y2 = y1;
+        y1 = y;
+      }
     }
   }
   /* USER CODE END StartAudioTask */

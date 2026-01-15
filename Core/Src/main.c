@@ -616,7 +616,7 @@ void StartTask02(void *argument)
 	lcd_init(hi2c1);
 	lcd_put_cursor(0,0);
 	lcd_clear();
-  int etat_menu;
+  int etat_menu = 1;
   int volume_power;
   char lcdtext[16];
   char lcdtext2[16];
@@ -624,7 +624,9 @@ void StartTask02(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osMessageQueueGet(menuQueueHandle,&etat_menu,NULL,osWaitForever);
+    //VERSION MENU 
+
+    osDelay(50);
 
     //AFF MENU
     lcd_clear();
@@ -636,17 +638,39 @@ void StartTask02(void *argument)
     //MENU 1 :
     if(etat_menu == 1 ){
       volume_power = 1<<volume_level;
-      snprintf(lcdtext2,16,"%i",volume_power);
+      snprintf(lcdtext2,16,"+%i",volume_power);
       lcd_put_cursor(1,0);
       lcd_write("Volume : ");
       lcd_write(lcdtext2);
     }
 
-    //MENU 2 :
-    if(etat_menu == 2 ){
-      lcd_put_cursor(1,0);
-      lcd_write("Rien");
-    }
+
+
+
+    // osMessageQueueGet(menuQueueHandle,&etat_menu,NULL,osWaitForever);
+
+    // //AFF MENU
+    // lcd_clear();
+    // sprintf(lcdtext, "%d", etat_menu);
+    // lcd_put_cursor(0,0);
+    // lcd_write("Menu : ");
+    // lcd_write(lcdtext);
+
+    // //MENU 1 :
+    // if(etat_menu == 1 ){
+    //   volume_power = 1<<volume_level;
+    //   snprintf(lcdtext2,16,"%i",volume_power);
+    //   lcd_put_cursor(1,0);
+    //   lcd_write("Volume : ");
+    //   lcd_write(lcdtext2);
+    // }
+
+    // //MENU 2 :
+    // if(etat_menu == 2 ){
+    //   lcd_put_cursor(1,0);
+    //   lcd_write("Rien");
+    // }
+
   }
   /* USER CODE END StartTask02 */
 }
@@ -667,31 +691,55 @@ void Start_Menu_Task(void *argument)
 
 	int16_t cpt;
   int16_t cpt_old=0;
-  int state = 1;  //etat 1 par defaut
-  int prev_state = 1;
+
 
   /* Infinite loop */
   for(;;)
   {
     int16_t raw_counter = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
     cpt = raw_counter / 4;
+
+    volume_level = cpt;
+
     //graphe detat
     if(cpt != cpt_old){
-      //Changement d'état
-
-      int raw_val = (cpt % NB_ETATS); 
-      if (raw_val < 0) raw_val += NB_ETATS;
-      
-      state = raw_val + 1;
-      if (state != prev_state){
-        osMessageQueueReset(menuQueueHandle);
-        osMessageQueuePut(menuQueueHandle,&state,1,999999);
-        prev_state = state;
-      }
+      osMessageQueueReset(menuQueueHandle);
+      osMessageQueuePut(menuQueueHandle,&volume_level,1,osWaitForever);
       cpt_old = cpt;
     }
     osDelay(1);
   }
+
+
+
+  // VERSION AVEC MENU
+  // int state = 1;  //etat 1 par defaut
+  // int prev_state = 1;
+
+  // /* Infinite loop */
+  // for(;;)
+  // {
+  //   int16_t raw_counter = (int16_t)__HAL_TIM_GET_COUNTER(&htim2);
+  //   cpt = raw_counter / 4;
+  //   //graphe detat
+  //   if(cpt != cpt_old){
+  //     //Changement d'état
+
+  //     int raw_val = (cpt % NB_ETATS); 
+  //     if (raw_val < 0) raw_val += NB_ETATS;
+      
+  //     state = raw_val + 1;
+  //     if (state != prev_state){
+  //       osMessageQueueReset(menuQueueHandle);
+  //       osMessageQueuePut(menuQueueHandle,&state,1,999999);
+  //       prev_state = state;
+  //     }
+  //     cpt_old = cpt;
+  //   }
+  //   osDelay(1);
+  // }
+
+
   /* USER CODE END Start_Menu_Task */
 }
 
@@ -708,18 +756,24 @@ void StartAudioTask(void *argument)
   HAL_I2S_Receive_DMA(&hi2s2, (uint16_t *)rxBuffer, BUFFER_SIZE);
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t *)txBuffer, BUFFER_SIZE);
 
+  int volume;
+
   /* Infinite loop */
   for(;;)
   {
+    if(osMessageQueueGet(menuQueueHandle,&volume,NULL,0) == osOK){
+      //maj vol
+    }
+
     if (osSemaphoreAcquire(myBinarySemHalfHandle, osWaitForever) == osOK){
         for (int i = 0; i < BUFFER_SIZE / 2; i++) {
-            txBuffer[i] = rxBuffer[i]<<volume_level; 
+            txBuffer[i] = rxBuffer[i]<<volume; 
         }
     }
 
     if (osSemaphoreAcquire(myBinarySemFullHandle, osWaitForever) == osOK){
         for (int i = BUFFER_SIZE / 2; i < BUFFER_SIZE; i++) {
-            txBuffer[i] = rxBuffer[i];
+            txBuffer[i] = rxBuffer[i]<< volume;
         }
     }
   }

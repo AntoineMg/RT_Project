@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "lcd_st7032i.h"
 #include <stdio.h>
+#include "arm_math.h"
 
 /* USER CODE END Includes */
 
@@ -760,21 +761,37 @@ void StartAudioTask(void *argument)
   float x;
   float x1;
   float x2;
+  q15_t xf;
+  q15_t x1f;
+  q15_t x2f;
 
   float y;
   float y1;
   float y2;
-
+  q15_t yf;
+  q15_t y1f;
+  q15_t y2f;
+  
   float b0 = 0.001023211f;
   float b1 = 0.002046422f;
   float b2 = 0.001023211f;
+  q15_t b0f;
+  q15_t b1f;
+  q15_t b2f;
+  arm_float_to_q15(b0, b0f);
+  arm_float_to_q15(b1, b1f);
+  arm_float_to_q15(b2, b2f);
 
   float a0 = 1.0f;
   float a1 = -1.907f;
   float a2 = 0.911f;
+  q15_t a1f;
+  q15_t a2f;
+  arm_float_to_q15(a1, a1f);
+  arm_float_to_q15(a2, a2f);
 
-  const float MAX_VAL = 32760.0f;
-  const float MIN_VAL = -32760.0f;
+  const q15_t MAX_VAL = 1.0;
+  const q15_t MIN_VAL = -1.0;
 
   int volume;
 
@@ -789,26 +806,25 @@ void StartAudioTask(void *argument)
       for (int i = 0; i < BUFFER_SIZE / 2; i+=2) {
         //recup valeurs
         x = (float)((int16_t)rxBuffer[i]);
-        y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        arm_float_to_q15(x, xf);
+        yf = b0f * xf + b1f * x1f + b2f * x2f - a1f * y1f - a2f * y2f;
 
-        if (y > MAX_VAL) y = MAX_VAL;
-        else if (y < MIN_VAL) y = MIN_VAL;
-
-        float y_amplifie = y * 1.0f; 
+        if (yf > MAX_VAL) yf = MAX_VAL;
+        else if (yf < MIN_VAL) yf = MIN_VAL;
         
         //saturation
-        if (y_amplifie > 32000.0f) y_amplifie = 32000.0f;
-        if (y_amplifie < -32000.0f) y_amplifie = -32000.0f;
+        if (yf > 1.0) yf = 1.0;
+        if (yf < -1.0) yf = -1.0;
 
         //passage en mono
-        txBuffer[i] = (int16_t)y_amplifie;
-        txBuffer[i+1] = (int16_t)y_amplifie;
+        txBuffer[i] = (int16_t)yf;
+        txBuffer[i+1] = (int16_t)yf;
 
         //maj memoires
-        x2 = x1;
-        x1 = x;
-        y2 = y1;
-        y1 = y;
+        x2f = x1f;
+        x1f = xf;
+        y2f = y1f;
+        y1f = yf;
       }
     }
 
@@ -816,26 +832,25 @@ void StartAudioTask(void *argument)
       for (int i = BUFFER_SIZE / 2; i < BUFFER_SIZE; i+=2) {
         //recup valeurs
         x = (float)((int16_t)rxBuffer[i]);
-        y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        arm_float_to_q15(x, xf);
+        yf = b0f * xf + b1f * x1f + b2f * x2f - a1f * y1f - a2f * y2f;
 
-        if (y > MAX_VAL) y = MAX_VAL;
-        else if (y < MIN_VAL) y = MIN_VAL;
-
-        float y_amplifie = y * 1.0f; 
+        if (yf > MAX_VAL) yf = MAX_VAL;
+        else if (yf < MIN_VAL) yf = MIN_VAL;
         
         //saturation
-        if (y_amplifie > 32000.0f) y_amplifie = 32000.0f;
-        if (y_amplifie < -32000.0f) y_amplifie = -32000.0f;
+        if (yf > 1.0) yf = 1.0;
+        if (yf < -1.0) yf = -1.0;
 
         //passage en mono
-        txBuffer[i] = (int16_t)y_amplifie;
-        txBuffer[i+1] = (int16_t)y_amplifie;
+        txBuffer[i] = (int16_t)yf;
+        txBuffer[i+1] = (int16_t)yf;
 
         //maj memoires
-        x2 = x1;
-        x1 = x;
-        y2 = y1;
-        y1 = y;
+        x2f = x1f;
+        x1f = xf;
+        y2f = y1f;
+        y1f = yf;
       }
     }
   }
